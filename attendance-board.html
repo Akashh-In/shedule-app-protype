@@ -160,11 +160,11 @@
   Click a cell to mark that day as <b>present</b> for that employee (click again to unmark). The cell's color is the
   running count of present days that week, in Monday→Sunday order: their 1st present day turns color 1, 2nd present
   day turns color 2, and so on up to 7 colors for a full week present. The number shown in each colored cell is that
-  running count. This board's data is <b>shared</b> — anyone you send this artifact link to sees the same employees
-  and attendance, refreshing automatically every few seconds to pick up others' changes.
+  running count. On Netlify, the board stores data in the visitor's browser so it stays after refreshes on the same
+  device.
 </div>
 
-<footer>ShiftBoard Attendance — data stored via shared artifact storage, not a private database.</footer>
+<footer>ShiftBoard Attendance — data stored in browser local storage.</footer>
 
 <script>
 const EMP_KEY = 'attendance_employees';
@@ -200,6 +200,25 @@ function escapeHtml(str){
   return div.innerHTML;
 }
 
+function readStorage(key){
+  try{
+    const value = window.localStorage.getItem(key);
+    return value ? JSON.parse(value) : null;
+  } catch(err){
+    return null;
+  }
+}
+
+function writeStorage(key, value){
+  try{
+    window.localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch(err){
+    console.error('Storage write failed for', key, err);
+    return false;
+  }
+}
+
 function setSyncing(on){
   const dot = document.getElementById('syncDot');
   const label = document.getElementById('syncLabel');
@@ -208,35 +227,21 @@ function setSyncing(on){
 }
 
 async function loadEmployees(){
-  try{
-    const res = await window.storage.get(EMP_KEY, true);
-    employees = res && res.value ? JSON.parse(res.value) : [];
-  } catch(err){
-    employees = [];
-  }
+  employees = readStorage(EMP_KEY) || [];
 }
 
 async function saveEmployees(){
-  try{
-    await window.storage.set(EMP_KEY, JSON.stringify(employees), true);
-  } catch(err){ console.error('Failed to save employees', err); }
+  writeStorage(EMP_KEY, employees);
 }
 
 async function loadAttendance(){
   const key = attKey(weekKeyStr(currentWeekStart));
-  try{
-    const res = await window.storage.get(key, true);
-    attendance = res && res.value ? JSON.parse(res.value) : {};
-  } catch(err){
-    attendance = {};
-  }
+  attendance = readStorage(key) || {};
 }
 
 async function saveAttendance(){
   const key = attKey(weekKeyStr(currentWeekStart));
-  try{
-    await window.storage.set(key, JSON.stringify(attendance), true);
-  } catch(err){ console.error('Failed to save attendance', err); }
+  writeStorage(key, attendance);
 }
 
 async function refreshFromStorage(){
