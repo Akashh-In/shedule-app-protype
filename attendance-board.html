@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShiftBoard — Attendance</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#12161d; --panel:#1b212c; --panel-2:#232a37; --line:#2d3542;
+    --paper:#eee8db; --ink-dim:#93a0b0; --amber:#e8a33d; --amber-dim:#4a3821;
+    --c1:#7fae6c; --c2:#5f8fd1; --c3:#8f6fd1; --c4:#e8a33d; --c5:#d1793f; --c6:#c9667a; --c7:#d1453f;
+  --radius:3px;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{ background:var(--bg); color:var(--paper); font-family:'Inter',sans-serif; min-height:100vh; -webkit-font-smoothing:antialiased; }
+  .display{ font-family:'Oswald',sans-serif; text-transform:uppercase; letter-spacing:0.04em; }
+  .mono{ font-family:'IBM Plex Mono',monospace; }
+
+  header{
+    display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap;
+    padding:20px 28px; border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg, var(--panel), var(--bg));
+  }
+  header h1{ margin:0; font-size:1.35rem; letter-spacing:0.06em; }
+  header .sub{ color:var(--ink-dim); font-size:0.72rem; letter-spacing:0.1em; margin-top:2px; }
+  .sync-pill{
+    display:flex; align-items:center; gap:7px; font-size:0.72rem; color:var(--ink-dim);
+    border:1px solid var(--line); border-radius:20px; padding:6px 12px; background:var(--panel-2);
+  }
+  .sync-dot{ width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 6px var(--green); }
+  .sync-dot.syncing{ background:var(--amber); box-shadow:0 0 6px var(--amber); animation:pulse 1s infinite; }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:0.4;} }
+
+  .toolbar{
+    display:flex; align-items:center; justify-content:space-between; gap:14px; flex-wrap:wrap;
+    padding:16px 28px; border-bottom:1px solid var(--line);
+  }
+  .week-nav{ display:flex; align-items:center; gap:10px; }
+  .week-nav button{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--paper);
+    width:32px; height:32px; border-radius:var(--radius); cursor:pointer; font-size:1rem;
+  }
+  .week-nav button:hover{ border-color:var(--amber); color:var(--amber); }
+  .week-label{ font-family:'Oswald',sans-serif; letter-spacing:0.05em; font-size:0.95rem; min-width:190px; text-align:center; }
+  .week-label .yr{ color:var(--ink-dim); font-size:0.78rem; }
+
+  .add-row{ display:flex; gap:8px; align-items:center; }
+  .add-row input{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--paper);
+    padding:8px 10px; border-radius:var(--radius); font-size:0.82rem; width:170px;
+  }
+  .add-row input:focus{ outline:none; border-color:var(--amber); }
+  .btn{
+    font-family:'Inter',sans-serif; font-weight:600; font-size:0.8rem; padding:8px 14px;
+    border-radius:var(--radius); border:1px solid var(--line); background:var(--panel-2);
+    color:var(--paper); cursor:pointer;
+  }
+  .btn:hover{ border-color:var(--amber); color:var(--amber); }
+  .btn.primary{ background:var(--amber); color:#1a1206; border-color:var(--amber); }
+  .btn.primary:hover{ background:#f2b155; color:#1a1206; }
+
+  .board-wrap{ padding:22px 28px; overflow-x:auto; }
+  table{ border-collapse:collapse; width:100%; min-width:760px; }
+  th, td{ border:1px solid var(--line); padding:0; }
+  thead th{
+    background:var(--panel); padding:10px 8px; text-align:center;
+    font-family:'Oswald',sans-serif; letter-spacing:0.05em; font-size:0.8rem;
+  }
+  thead th .d-num{ display:block; color:var(--amber); font-size:1rem; margin-top:2px; }
+  thead th.today{ color:var(--amber); }
+  th.name-col{ text-align:left; min-width:170px; background:var(--panel); }
+
+  td.name-cell{ background:var(--panel-2); padding:10px 12px; min-width:170px; position:relative; }
+  .emp-name{ font-weight:600; font-size:0.86rem; }
+  .emp-remove{ position:absolute; right:8px; top:8px; background:none; border:none; color:var(--ink-dim); opacity:0.5; cursor:pointer; font-size:0.85rem; }
+  .emp-remove:hover{ opacity:1; color:var(--red); }
+
+  td.att-cell{
+    height:56px; cursor:pointer; background:#f5f2ea; transition:background .12s;
+    position:relative;
+  }
+  td.att-cell:hover{ outline:2px solid var(--amber); outline-offset:-2px; }
+  td.att-cell.count-1{ background:var(--c1); }
+  td.att-cell.count-2{ background:var(--c2); }
+  td.att-cell.count-3{ background:var(--c3); }
+  td.att-cell.count-4{ background:var(--c4); }
+  td.att-cell.count-5{ background:var(--c5); }
+  td.att-cell.count-6{ background:var(--c6); }
+  td.att-cell.count-7{ background:var(--c7); }
+  td.att-cell .cell-label{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:0.85rem; color:#1a1206; opacity:0.9;
+  }
+
+  .legend{ display:flex; gap:10px; padding:0 28px 20px; flex-wrap:wrap; }
+  .legend-item{ display:flex; align-items:center; gap:6px; font-size:0.72rem; color:var(--ink-dim); }
+  .legend-swatch{ width:14px; height:14px; border-radius:2px; border:1px solid var(--line); }
+  .legend-swatch.white{ background:#f5f2ea; }
+  .legend-swatch.c1{ background:var(--c1); } .legend-swatch.c2{ background:var(--c2); }
+  .legend-swatch.c3{ background:var(--c3); } .legend-swatch.c4{ background:var(--c4); }
+  .legend-swatch.c5{ background:var(--c5); } .legend-swatch.c6{ background:var(--c6); }
+  .legend-swatch.c7{ background:var(--c7); }
+
+  .share-note{
+    margin:0 28px 24px; padding:14px 16px; background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--radius); font-size:0.78rem; color:var(--ink-dim); line-height:1.5;
+  }
+  .share-note b{ color:var(--paper); }
+
+  footer{ text-align:center; padding:20px; color:var(--ink-dim); font-size:0.72rem; letter-spacing:0.04em; }
+
+  @media (prefers-reduced-motion: reduce){ * { transition:none !important; animation:none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1 class="display">ShiftBoard — Attendance</h1>
+    <div class="sub">Weekly attendance grid &middot; shared with everyone viewing this board</div>
+  </div>
+  <div class="sync-pill"><span class="sync-dot" id="syncDot"></span><span id="syncLabel">Synced</span></div>
+</header>
+
+<div class="toolbar">
+  <div class="week-nav">
+    <button id="prevWeek">‹</button>
+    <div class="week-label display" id="weekLabel">Week of —</div>
+    <button id="nextWeek">›</button>
+    <button class="btn" id="todayBtn" style="width:auto;">Today</button>
+  </div>
+  <div class="add-row">
+    <input type="text" id="newEmpName" placeholder="Employee name" maxlength="40">
+    <button class="btn primary" id="addEmpBtn">+ Add employee</button>
+  </div>
+</div>
+
+<div class="board-wrap">
+  <table id="boardTable">
+    <thead><tr id="headRow"><th class="name-col display">Employee</th></tr></thead>
+    <tbody id="boardBody"></tbody>
+  </table>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><span class="legend-swatch white"></span> Not present</div>
+  <div class="legend-item"><span class="legend-swatch c1"></span> 1 day</div>
+  <div class="legend-item"><span class="legend-swatch c2"></span> 2 days</div>
+  <div class="legend-item"><span class="legend-swatch c3"></span> 3 days</div>
+  <div class="legend-item"><span class="legend-swatch c4"></span> 4 days</div>
+  <div class="legend-item"><span class="legend-swatch c5"></span> 5 days</div>
+  <div class="legend-item"><span class="legend-swatch c6"></span> 6 days</div>
+  <div class="legend-item"><span class="legend-swatch c7"></span> 7 days (full week)</div>
+</div>
+
+<div class="share-note">
+  Click a cell to mark that day as <b>present</b> for that employee (click again to unmark). The cell's color is the
+  running count of present days that week, in Monday→Sunday order: their 1st present day turns color 1, 2nd present
+  day turns color 2, and so on up to 7 colors for a full week present. The number shown in each colored cell is that
+  running count. This board's data is <b>shared</b> — anyone you send this artifact link to sees the same employees
+  and attendance, refreshing automatically every few seconds to pick up others' changes.
+</div>
+
+<footer>ShiftBoard Attendance — data stored via shared artifact storage, not a private database.</footer>
+
+<script>
+const EMP_KEY = 'attendance_employees';
+const attKey = (weekStr) => `attendance_${weekStr}`;
+
+let currentWeekStart = startOfWeek(new Date());
+let employees = [];
+let attendance = {}; // { employeeId: { 'YYYY-MM-DD': stateNumber } }
+let pollTimer = null;
+
+function startOfWeek(d){
+  const date = new Date(d);
+  const day = (date.getDay() + 6) % 7;
+  date.setDate(date.getDate() - day);
+  date.setHours(0,0,0,0);
+  return date;
+}
+function addDays(d,n){ const r = new Date(d); r.setDate(r.getDate()+n); return r; }
+function fmtDateStr(d){ return d.toISOString().slice(0,10); }
+function weekKeyStr(d){ return fmtDateStr(d); }
+function fmtWeekLabel(start){
+  const end = addDays(start,6);
+  const opts = {month:'short', day:'numeric'};
+  return `${start.toLocaleDateString('en-GB',opts)} – ${end.toLocaleDateString('en-GB',opts)}`;
+}
+function isToday(d){
+  const t = new Date(); t.setHours(0,0,0,0);
+  return fmtDateStr(d) === fmtDateStr(t);
+}
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function setSyncing(on){
+  const dot = document.getElementById('syncDot');
+  const label = document.getElementById('syncLabel');
+  dot.classList.toggle('syncing', on);
+  label.textContent = on ? 'Syncing…' : 'Synced';
+}
+
+async function loadEmployees(){
+  try{
+    const res = await window.storage.get(EMP_KEY, true);
+    employees = res && res.value ? JSON.parse(res.value) : [];
+  } catch(err){
+    employees = [];
+  }
+}
+
+async function saveEmployees(){
+  try{
+    await window.storage.set(EMP_KEY, JSON.stringify(employees), true);
+  } catch(err){ console.error('Failed to save employees', err); }
+}
+
+async function loadAttendance(){
+  const key = attKey(weekKeyStr(currentWeekStart));
+  try{
+    const res = await window.storage.get(key, true);
+    attendance = res && res.value ? JSON.parse(res.value) : {};
+  } catch(err){
+    attendance = {};
+  }
+}
+
+async function saveAttendance(){
+  const key = attKey(weekKeyStr(currentWeekStart));
+  try{
+    await window.storage.set(key, JSON.stringify(attendance), true);
+  } catch(err){ console.error('Failed to save attendance', err); }
+}
+
+async function refreshFromStorage(){
+  setSyncing(true);
+  await loadEmployees();
+  await loadAttendance();
+  renderBoard();
+  setSyncing(false);
+}
+
+function renderHeader(){
+  document.getElementById('weekLabel').innerHTML =
+    `${fmtWeekLabel(currentWeekStart)} <span class="yr">${currentWeekStart.getFullYear()}</span>`;
+}
+
+function renderBoard(){
+  renderHeader();
+  const headRow = document.getElementById('headRow');
+  headRow.innerHTML = '<th class="name-col display">Employee</th>';
+  const days = [];
+  for(let i=0;i<7;i++){
+    const d = addDays(currentWeekStart, i);
+    days.push(d);
+    const th = document.createElement('th');
+    th.className = isToday(d) ? 'today' : '';
+    th.innerHTML = `${d.toLocaleDateString('en-GB',{weekday:'short'})}<span class="d-num mono">${d.getDate()}</span>`;
+    headRow.appendChild(th);
+  }
+
+  const body = document.getElementById('boardBody');
+  body.innerHTML = '';
+
+  if(employees.length === 0){
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 8;
+    td.style.padding = '24px';
+    td.style.textAlign = 'center';
+    td.style.color = 'var(--ink-dim)';
+    td.textContent = 'No employees yet — add one above to start the board.';
+    tr.appendChild(td);
+    body.appendChild(tr);
+    return;
+  }
+
+  employees.forEach(emp => {
+    const tr = document.createElement('tr');
+    const nameTd = document.createElement('td');
+    nameTd.className = 'name-cell';
+    nameTd.innerHTML = `<button class="emp-remove" data-emp="${emp.id}" title="Remove employee">✕</button><div class="emp-name">${escapeHtml(emp.name)}</div>`;
+    tr.appendChild(nameTd);
+
+    // Walk Mon->Sun in order, incrementing a running count for each present day.
+    let runningCount = 0;
+    days.forEach(d => {
+      const dateStr = fmtDateStr(d);
+      const isPresent = !!(attendance[emp.id] && attendance[emp.id][dateStr]);
+      const td = document.createElement('td');
+      td.dataset.emp = emp.id;
+      td.dataset.date = dateStr;
+      if(isPresent){
+        runningCount = Math.min(runningCount + 1, 7);
+        td.className = `att-cell count-${runningCount}`;
+        td.innerHTML = `<div class="cell-label">${runningCount}</div>`;
+      } else {
+        td.className = 'att-cell';
+        td.innerHTML = '';
+      }
+      tr.appendChild(td);
+    });
+
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('td.att-cell').forEach(td => {
+    td.addEventListener('click', () => cycleCell(td.dataset.emp, td.dataset.date));
+  });
+  body.querySelectorAll('.emp-remove').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeEmployee(btn.dataset.emp);
+    });
+  });
+}
+
+async function cycleCell(employeeId, dateStr){
+  if(!attendance[employeeId]) attendance[employeeId] = {};
+  const isPresent = !!attendance[employeeId][dateStr];
+  if(isPresent){ delete attendance[employeeId][dateStr]; }
+  else { attendance[employeeId][dateStr] = 1; }
+  renderBoard();
+  setSyncing(true);
+  await saveAttendance();
+  setSyncing(false);
+}
+
+async function addEmployee(){
+  const input = document.getElementById('newEmpName');
+  const name = input.value.trim();
+  if(!name) return;
+  employees.push({ id: 'e' + Date.now() + Math.random().toString(36).slice(2,6), name });
+  input.value = '';
+  renderBoard();
+  setSyncing(true);
+  await saveEmployees();
+  setSyncing(false);
+}
+
+async function removeEmployee(id){
+  if(!confirm('Remove this employee from the board? Their attendance history stays stored but will no longer display.')) return;
+  employees = employees.filter(e => e.id !== id);
+  renderBoard();
+  setSyncing(true);
+  await saveEmployees();
+  setSyncing(false);
+}
+
+document.getElementById('addEmpBtn').addEventListener('click', addEmployee);
+document.getElementById('newEmpName').addEventListener('keydown', (e) => { if(e.key === 'Enter') addEmployee(); });
+
+document.getElementById('prevWeek').addEventListener('click', async () => {
+  currentWeekStart = addDays(currentWeekStart, -7);
+  setSyncing(true);
+  await loadAttendance();
+  renderBoard();
+  setSyncing(false);
+});
+document.getElementById('nextWeek').addEventListener('click', async () => {
+  currentWeekStart = addDays(currentWeekStart, 7);
+  setSyncing(true);
+  await loadAttendance();
+  renderBoard();
+  setSyncing(false);
+});
+document.getElementById('todayBtn').addEventListener('click', async () => {
+  currentWeekStart = startOfWeek(new Date());
+  setSyncing(true);
+  await loadAttendance();
+  renderBoard();
+  setSyncing(false);
+});
+
+async function init(){
+  setSyncing(true);
+  await loadEmployees();
+  await loadAttendance();
+  renderBoard();
+  setSyncing(false);
+  // Poll for changes made by other people viewing this same board
+  pollTimer = setInterval(refreshFromStorage, 4000);
+}
+init();
+</script>
+</body>
+</html>
